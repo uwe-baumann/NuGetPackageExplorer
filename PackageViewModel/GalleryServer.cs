@@ -32,15 +32,19 @@ namespace PackageExplorerViewModel
 
         public async Task PushPackage(string apiKey, string filePath, IPackageMetadata package, bool pushAsUnlisted)
         {
-            string requestUri = EnsureTrailingSlash(_source) + ServiceEndpoint;
-            
+            string requestUri = _source.Contains("nuget.org")
+                                    ? EnsureTrailingSlash(_source) + ServiceEndpoint
+                                    : _source;
+
             HttpWebRequest httpRequest = WebRequest.CreateHttp(requestUri);
+
             httpRequest.Method = "PUT";
             httpRequest.AllowAutoRedirect = true;
-            httpRequest.AllowWriteStreamBuffering = false;
             httpRequest.KeepAlive = false;
             httpRequest.Headers.Add(ApiKeyHeader, apiKey);
             httpRequest.UserAgent = _userAgent;
+            httpRequest.UseDefaultCredentials = true;
+            httpRequest.PreAuthenticate = true;
 
             var multipartRequest = new MultipartWebRequest();
             multipartRequest.AddFile(new FileInfo(filePath), package.ToString());
@@ -53,15 +57,16 @@ namespace PackageExplorerViewModel
 
             if (pushAsUnlisted)
             {
-                await DeletePackageFromServer(apiKey, package.Id, package.Version.ToString());
+                await DeletePackageFromServer(requestUri, apiKey, package.Id, package.Version.ToString());
             }
         }
 
-        private Task DeletePackageFromServer(string apiKey, string packageId, string packageVersion)
+        private Task DeletePackageFromServer(string requestUri, string apiKey, string packageId, string packageVersion)
         {
-            string requestUri = EnsureTrailingSlash(_source) + ServiceEndpoint + "/" + packageId + "/" + packageVersion;
+            string packageUri = requestUri + "/" + packageId + "/" + packageVersion;
 
-            HttpWebRequest httpRequest = WebRequest.CreateHttp(requestUri);
+            HttpWebRequest httpRequest = WebRequest.CreateHttp(packageUri);
+            httpRequest.UseDefaultCredentials = true;
             httpRequest.Method = "DELETE";
             httpRequest.Headers.Add(ApiKeyHeader, apiKey);
             httpRequest.UserAgent = _userAgent;
